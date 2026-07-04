@@ -2,15 +2,18 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>AI Companion v3</title>
+  <title>AI Location Companion</title>
 </head>
 
 <body>
-  <h2>🤖 AI伴侣 v3 正在理解你的生活...</h2>
+  <h2>🤖 AI定位伴侣系统</h2>
   <pre id="status">初始化中...</pre>
 
 <script>
 
+/* =========================
+   Supabase配置
+========================= */
 const SUPABASE_URL = "https://yzhposuiczzthtctafuk.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6aHBvc3VpY3p6dGh0Y3RhZnVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0MzU3MzMsImV4cCI6MjA5ODAxMTczM30.OWZpBrCxPs-mWCOO0AemjDARelZjI1z6Nv_BsZayzD8";
 
@@ -22,7 +25,58 @@ function setStatus(msg) {
 }
 
 /* =========================
-   读取历史数据
+   全局状态
+========================= */
+let lastLat = null;
+let lastLng = null;
+let uploadCount = 0;
+
+/* =========================
+   Supabase上传
+========================= */
+async function uploadLocation(lat, lng) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/user_location`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Prefer": "return=representation"
+      },
+      body: JSON.stringify({
+        lat,
+        lng,
+        created_at: new Date().toISOString()
+      })
+    });
+
+    const text = await res.text();
+    console.log("📡 Supabase response:", text);
+
+    uploadCount++;
+    return text;
+
+  } catch (e) {
+    console.log("❌ upload error:", e);
+  }
+}
+
+/* =========================
+   防抖：判断是否值得上传
+========================= */
+function shouldUpload(lat, lng) {
+  if (lastLat === null || lastLng === null) return true;
+
+  const diff =
+    Math.abs(lat - lastLat) +
+    Math.abs(lng - lastLng);
+
+  return diff > 0.0003;
+}
+
+/* =========================
+   获取历史数据
 ========================= */
 async function getData() {
   try {
@@ -38,7 +92,7 @@ async function getData() {
 
     return await res.json() || [];
   } catch (e) {
-    console.log("getData error", e);
+    console.log(e);
     return [];
   }
 }
@@ -84,18 +138,20 @@ function findHome(list) {
 }
 
 /* =========================
-   AI：行为分析
+   AI行为分析
 ========================= */
 function analyzeLife(list, current) {
+  if (!list.length) return "📍 正在学习你的行为模式...";
+
   const home = findHome(list);
   const currentKey = `${Math.round(current.lat * 10)},${Math.round(current.lng * 10)}`;
 
   if (home === currentKey) {
-    return "🏠 你现在在常驻位置（像是在家）";
+    return "🏠 你在常驻地点（类似在家）";
   }
 
-  if (list.length < 3) {
-    return "📍 我正在学习你的生活规律...";
+  if (list.length < 5) {
+    return "📍 数据还不够，我正在学习你的规律";
   }
 
   const prev = list[1];
@@ -105,100 +161,83 @@ function analyzeLife(list, current) {
     Math.abs(current.lng - prev.lng) > 0.02;
 
   if (moved) {
-    return "🚶 你最近在频繁移动";
+    return "🚶 你最近移动频繁";
   }
 
-  return "🧭 你的活动节奏比较稳定";
+  return "🧭 你的生活节奏较稳定";
 }
 
 /* =========================
-   主AI逻辑
+   AI主逻辑
 ========================= */
-async function update() {
-  try {
-    setStatus("🧠 AI分析中...");
+async function updateAI(current) {
+  const list = await getData();
 
-    const list = await getData();
+  const temp = await getWeather(current.lat, current.lng);
 
-    if (!list.length) {
-      setStatus("📡 还没有收到你的定位数据");
-      return;
-    }
+  let area = "未知区域";
 
-    const current = list[0];
-
-    const lat = current.lat;
-    const lng = current.lng;
-
-    const temp = await getWeather(lat, lng);
-
-    let area = "你的当前位置";
-
-    if (lat > 35 && lng > 100 && lng < 125) {
-      area = "中国东部";
-    } else if (lat > 20 && lat <= 35 && lng > 105) {
-      area = "中国南方";
-    } else if (lat > 35 && lng < 105) {
-      area = "中国西北";
-    }
-
-    let mood = "";
-    if (temp >= 30) mood = "很热";
-    else if (temp >= 20) mood = "舒适";
-    else if (temp >= 10) mood = "有点凉";
-    else mood = "很冷";
-
-    const life = analyzeLife(list, current);
-
-    setStatus(
-`📍 区域：${area}
-🌡 温度：${temp}°C（${mood}）
-
-🧠 AI判断：
-${life}
-`
-    );
-
-  } catch (e) {
-    console.log(e);
-    setStatus("⚠️ AI运行异常，刷新重试");
+  if (current.lat > 35 && current.lng > 100 && current.lng < 125) {
+    area = "中国东部";
+  } else if (current.lat > 20 && current.lat <= 35 && current.lng > 105) {
+    area = "中国南方";
+  } else if (current.lat > 35 && current.lng < 105) {
+    area = "中国西北";
   }
+
+  const life = analyzeLife(list, current);
+
+  setStatus(
+`📍 区域：${area}
+🌡 温度：${temp}°C
+
+🧠 AI分析：
+${life}
+
+📡 上传次数：${uploadCount}`
+  );
 }
 
 /* =========================
-   📡 自动上传定位（关键）
+   定位 + 上传核心
 ========================= */
 function startTracking() {
 
   if (!navigator.geolocation) {
-    setStatus("浏览器不支持定位");
+    setStatus("❌ 浏览器不支持定位");
     return;
   }
 
+  setStatus("📡 请求定位权限...");
+
   navigator.geolocation.watchPosition(async (pos) => {
-    try {
 
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
 
-      await fetch(`${SUPABASE_URL}/rest/v1/user_location`, {
-        method: "POST",
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-          "Content-Type": "application/json",
-          Prefer: "return=minimal"
-        },
-        body: JSON.stringify({ lat, lng })
-      });
+    console.log("📍 GPS:", lat, lng);
 
-    } catch (e) {
-      console.log("上传失败", e);
+    setStatus(`📍 ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+
+    /* ===== 防重复上传 ===== */
+    if (!shouldUpload(lat, lng)) {
+      console.log("⏸ 跳过重复上传");
+      return;
     }
+
+    lastLat = lat;
+    lastLng = lng;
+
+    console.log("⬆️ 上传中...");
+
+    await uploadLocation(lat, lng);
+
+    /* ===== AI更新 ===== */
+    await updateAI({ lat, lng });
 
   }, (err) => {
     console.log(err);
-    setStatus("❌ 无法获取定位权限");
+    setStatus("❌ 定位失败：" + err.message);
   }, {
     enableHighAccuracy: true,
     maximumAge: 5000,
@@ -207,10 +246,8 @@ function startTracking() {
 }
 
 /* =========================
-   启动
+   启动系统
 ========================= */
-setTimeout(update, 1000);
-setInterval(update, 15000);
 startTracking();
 
 </script>
