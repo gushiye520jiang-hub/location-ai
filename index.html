@@ -13,11 +13,12 @@
 const SUPABASE_URL = "https://yzhposuiczzthtctafuk.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6aHBvc3VpY3p6dGh0Y3RhZnVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0MzU3MzMsImV4cCI6MjA5ODAxMTczM30.OWZpBrCxPs-mWCOO0AemjDARelZjI1z6Nv_BsZayzD8";
 
+/* 状态显示 */
 function setStatus(msg) {
   document.getElementById("status").innerText = msg;
 }
 
-// 获取数据
+/* 获取位置数据 */
 async function getData() {
   try {
     const res = await fetch(
@@ -31,12 +32,13 @@ async function getData() {
     );
 
     return await res.json() || [];
-  } catch {
+  } catch (e) {
+    console.log(e);
     return [];
   }
 }
 
-// 天气
+/* 天气 */
 async function getWeather(lat, lng) {
   try {
     const res = await fetch(
@@ -50,7 +52,7 @@ async function getWeather(lat, lng) {
   }
 }
 
-// 🏠 找“家”
+/* 🧠 找常驻点（家） */
 function findHome(list) {
   const map = new Map();
 
@@ -72,45 +74,45 @@ function findHome(list) {
   return home;
 }
 
-// 🧠 情绪分析（v3核心）
-function analyzeEmotion(list, current) {
+/* 🧠 AI行为判断 */
+function analyzeLife(list, current) {
   const home = findHome(list);
   const currentKey = `${Math.round(current.lat * 10)},${Math.round(current.lng * 10)}`;
 
-  let emotion = "";
-
-  // 🏠 在家
   if (home === currentKey) {
-    emotion = "home";
-  } else {
-    const prev = list[1];
-
-    if (!prev) return "normal";
-
-    const moved =
-      Math.abs(current.lat - prev.lat) > 0.02 ||
-      Math.abs(current.lng - prev.lng) > 0.02;
-
-    emotion = moved ? "active" : "stable";
+    return "🏠 你现在在常驻位置（像是在家）";
   }
 
-  return emotion;
+  if (list.length < 2) {
+    return "📍 我正在了解你的生活规律...";
+  }
+
+  const prev = list[1];
+
+  const moved =
+    Math.abs(current.lat - prev.lat) > 0.02 ||
+    Math.abs(current.lng - prev.lng) > 0.02;
+
+  if (moved) {
+    return "🚶 你今天在外面活动比较多";
+  }
+
+  return "🧭 你的生活节奏比较稳定";
 }
 
-// 🤖 主逻辑（v3核心）
+/* 🤖 主逻辑 */
 async function update() {
   try {
-    setStatus("我在感受你的状态...");
+    setStatus("我在分析你的状态...");
 
     const list = await getData();
 
     if (!list || list.length === 0) {
-      setStatus("我还没有足够的信息了解你...");
+      setStatus("我还没有收到你的定位数据...");
       return;
     }
 
     const current = list[0];
-
     const lat = current.lat;
     const lng = current.lng;
 
@@ -126,43 +128,27 @@ async function update() {
       area = "中国西北地区";
     }
 
-    const emotion = analyzeEmotion(list, current);
+    let mood = "";
 
-    let moodText = "";
-    let careText = "";
+    if (temp >= 30) mood = "有点热";
+    else if (temp >= 20) mood = "挺舒服";
+    else if (temp >= 10) mood = "有点凉";
+    else mood = "很冷";
 
-    // 🌡 天气情绪
-    if (temp >= 30) moodText = "有点热";
-    else if (temp >= 20) moodText = "挺舒服";
-    else if (temp >= 10) moodText = "有点凉";
-    else moodText = "很冷";
+    const life = analyzeLife(list, current);
 
-    // ❤️ AI“关心表达”（v3重点）
-    if (emotion === "home") {
-      careText = "你现在在常驻的位置，好好休息一下也不错。";
-    } 
-    else if (emotion === "active") {
-      careText = "你今天移动得比较多，是在忙事情吗？注意别太累了。";
-    } 
-    else if (emotion === "stable") {
-      careText = "你今天状态比较稳定，我在慢慢了解你的节奏。";
-    } 
-    else {
-      careText = "我还在观察你的生活规律。";
-    }
+    const aiText =
+      `你现在在${area}，天气${mood}，温度约${temp}°C。\n\n${life}`;
 
-    const finalText =
-      `你现在在${area}，天气${moodText}，温度约${temp}°C。\n\n${careText}`;
-
-    setStatus(`📍 ${area}\n🌡 ${temp}°C\n🧠 ${finalText}`);
+    setStatus(`📍 ${area}\n🌡 ${temp}°C\n🧠 ${aiText}`);
 
   } catch (e) {
     console.log(e);
-    setStatus("我刚刚有点走神了，可以再试一次吗？");
+    setStatus("我刚刚有点卡住了，可以刷新试试");
   }
 }
 
-// 启动
+/* 启动 */
 setTimeout(update, 500);
 setInterval(update, 15000);
 
