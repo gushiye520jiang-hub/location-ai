@@ -2,11 +2,11 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>AI Companion Location System</title>
+  <title>AI Companion v2</title>
 </head>
 
 <body>
-  <h2>🤖 AI伴侣正在关注你...</h2>
+  <h2>🤖 AI伴侣 v2 正在学习你的生活...</h2>
   <p id="status">初始化中...</p>
 
 <script>
@@ -17,11 +17,11 @@ function setStatus(msg) {
   document.getElementById("status").innerText = msg;
 }
 
-// 获取历史位置
-async function getLatest() {
+// 获取历史数据
+async function getData() {
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/user_location?select=lat,lng,created_at&order=id.desc&limit=20`,
+      `${SUPABASE_URL}/rest/v1/user_location?select=lat,lng,created_at&order=id.desc&limit=50`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -30,11 +30,8 @@ async function getLatest() {
       }
     );
 
-    const data = await res.json();
-    return data || [];
-
+    return await res.json() || [];
   } catch (e) {
-    console.log(e);
     return [];
   }
 }
@@ -48,33 +45,79 @@ async function getWeather(lat, lng) {
 
     const data = await res.json();
     return data?.current_weather?.temperature ?? "未知";
-
-  } catch (e) {
+  } catch {
     return "未知";
   }
 }
 
-// 🧠 主逻辑（AI伴侣核心）
+// 🧠 找“最常出现位置”（家）
+function findHome(list) {
+  const map = new Map();
+
+  for (const item of list) {
+    const key = `${Math.round(item.lat * 10)},${Math.round(item.lng * 10)}`;
+    map.set(key, (map.get(key) || 0) + 1);
+  }
+
+  let home = null;
+  let max = 0;
+
+  for (const [k, v] of map.entries()) {
+    if (v > max) {
+      max = v;
+      home = k;
+    }
+  }
+
+  return home;
+}
+
+// 🧠 判断状态
+function analyzeLife(list, current) {
+  const home = findHome(list);
+
+  const currentKey = `${Math.round(current.lat * 10)},${Math.round(current.lng * 10)}`;
+
+  if (home === currentKey) {
+    return "🏠 你现在在“常驻位置”（像是在家）";
+  }
+
+  // 距离变化判断
+  const prev = list[1];
+  if (!prev) return "📍 我还在观察你的生活规律...";
+
+  const moved =
+    Math.abs(current.lat - prev.lat) > 0.02 ||
+    Math.abs(current.lng - prev.lng) > 0.02;
+
+  if (moved) {
+    return "🚶 你今天在外面活动比较多";
+  }
+
+  return "🧭 你的活动节奏比较稳定";
+}
+
+// 🤖 主逻辑
 async function update() {
   try {
-    setStatus("我在看看你在哪...");
+    setStatus("我在了解你的生活...");
 
-    const list = await getLatest();
+    const list = await getData();
 
     if (!list || list.length === 0) {
-      setStatus("我还没有收到你的位置信息...");
+      setStatus("我还没有记录到你的位置...");
       return;
     }
 
-    const latest = list[0];
-    const lat = latest.lat;
-    const lng = latest.lng;
+    const current = list[0];
 
-    setStatus("我在理解你的状态...");
+    const lat = current.lat;
+    const lng = current.lng;
+
+    setStatus("分析中...");
 
     const temp = await getWeather(lat, lng);
 
-    // 🌍 区域判断
     let area = "你的当前位置";
 
     if (lat > 35 && lng > 100 && lng < 125) {
@@ -85,55 +128,23 @@ async function update() {
       area = "中国西北地区";
     }
 
-    // 🧠 行为分析（记忆核心）
-    let sameAreaCount = 0;
-
-    for (let i = 1; i < list.length; i++) {
-      const dLat = Math.abs(lat - list[i].lat);
-      const dLng = Math.abs(lng - list[i].lng);
-
-      if (dLat < 0.01 && dLng < 0.01) {
-        sameAreaCount++;
-      }
-    }
-
-    // 🌡 情绪判断
     let mood = "";
-    let advice = "";
 
-    if (temp >= 30) {
-      mood = "有点热";
-      advice = "记得多喝水";
-    } else if (temp >= 20) {
-      mood = "挺舒服";
-      advice = "适合出门走走";
-    } else if (temp >= 10) {
-      mood = "有点凉";
-      advice = "记得带外套";
-    } else {
-      mood = "很冷";
-      advice = "注意保暖";
-    }
+    if (temp >= 30) mood = "有点热";
+    else if (temp >= 20) mood = "挺舒服";
+    else if (temp >= 10) mood = "有点凉";
+    else mood = "很冷";
 
-    // ❤️ AI伴侣语言（关键升级）
-    let companion = "";
+    const life = analyzeLife(list, current);
 
-    if (sameAreaCount > 4) {
-      companion = "你最近好像一直在这个地方，是在休息吗？";
-    } else if (sameAreaCount <= 2) {
-      companion = "你今天移动得有点多，是在外面忙吗？";
-    } else {
-      companion = "我正在慢慢了解你的生活节奏。";
-    }
+    const aiText =
+      `我看了一下，你现在在${area}，天气${mood}，温度约${temp}°C。\n\n${life}`;
 
-    const finalText =
-      `我看了一下，你现在在${area}，天气${mood}，温度大约${temp}°C，${advice}。\n\n${companion}`;
-
-    setStatus(`📍 ${area}\n🌡 ${temp}°C\n🧠 ${finalText}`);
+    setStatus(`📍 ${area}\n🌡 ${temp}°C\n🧠 ${aiText}`);
 
   } catch (e) {
     console.log(e);
-    setStatus("我刚刚有点卡住了，可以刷新一下吗？");
+    setStatus("我有点没理解你的位置，再试一次好吗？");
   }
 }
 
