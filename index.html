@@ -18,15 +18,34 @@ function setStatus(msg) {
 }
 
 // 1️⃣ 最新位置
-async function getLatest() {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/user_location?select=lat,lng&order=id.desc&limit=1`,
-    {
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`
-      }
+async function getCity(lat, lng) {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+    );
+
+    const data = await res.json();
+    const addr = data?.address || {};
+
+    const city =
+      addr.city ||
+      addr.town ||
+      addr.village ||
+      addr.county ||
+      addr.state ||
+      addr.region ||
+      addr.country;
+
+    if (!city) {
+      return `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
     }
+
+    return city;
+
+  } catch (e) {
+    return `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
+  }
+}
   );
 
   const data = await res.json();
