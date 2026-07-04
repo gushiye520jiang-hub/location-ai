@@ -13,11 +13,14 @@
 const SUPABASE_URL = "https://yzhposuiczzthtctafuk.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6aHBvc3VpY3p6dGh0Y3RhZnVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0MzU3MzMsImV4cCI6MjA5ODAxMTczM30.OWZpBrCxPs-mWCOO0AemjDARelZjI1z6Nv_BsZayzD8";
 
+// 👉 高德 API KEY（你填这里）
+const AMAP_KEY = "51cef85f98f92987840a4100de0f3fe0";
+
 function setStatus(msg) {
   document.getElementById("status").innerText = msg;
 }
 
-// 获取最新位置
+// 1️⃣ 获取最新位置
 async function getLatest() {
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/user_location?select=lat,lng&order=id.desc&limit=1`,
@@ -33,24 +36,18 @@ async function getLatest() {
   return data && data[0] ? data[0] : null;
 }
 
-// 🌍 城市解析（超稳版本）
+// 2️⃣ 🌍 高德逆地理编码（稳定版）
 async function getCity(lat, lng) {
   try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
-    );
+    const url = `https://restapi.amap.com/v3/geocode/regeo?location=${lng},${lat}&key=${AMAP_KEY}`;
 
+    const res = await fetch(url);
     const data = await res.json();
 
-    const addr = data?.address || {};
-
     return (
-      addr.city ||
-      addr.town ||
-      addr.village ||
-      addr.county ||
-      addr.state ||
-      addr.country ||
+      data?.regeocode?.addressComponent?.city ||
+      data?.regeocode?.addressComponent?.province ||
+      data?.regeocode?.addressComponent?.district ||
       "未知城市"
     );
   } catch (e) {
@@ -58,7 +55,7 @@ async function getCity(lat, lng) {
   }
 }
 
-// 🌡 天气
+// 3️⃣ 天气（继续用免费稳定API）
 async function getWeather(lat, lng) {
   try {
     const res = await fetch(
@@ -72,7 +69,7 @@ async function getWeather(lat, lng) {
   }
 }
 
-// 🚀 主流程
+// 4️⃣ 主流程
 async function update() {
   try {
     setStatus("读取最新位置...");
@@ -107,7 +104,7 @@ async function update() {
   }
 }
 
-// 🚀 启动
+// 5️⃣ 启动
 update();
 setInterval(update, 15000);
 
