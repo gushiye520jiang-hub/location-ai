@@ -38,7 +38,7 @@ async function getLatest() {
   }
 }
 
-// 获取天气
+// 天气
 async function getWeather(lat, lng) {
   try {
     const res = await fetch(
@@ -53,7 +53,7 @@ async function getWeather(lat, lng) {
   }
 }
 
-// 🤖 AI说话核心
+// 🤖 AI核心（增强版）
 async function update() {
   try {
     setStatus("读取位置...");
@@ -72,9 +72,9 @@ async function update() {
 
     const temp = await getWeather(lat, lng);
 
-    setStatus("AI分析中...");
+    setStatus("AI思考中...");
 
-    // 🌍 简单区域判断（稳定，不依赖城市API）
+    // 🌍 区域判断（稳定版）
     let area = "";
 
     if (lat > 35 && lng > 100 && lng < 125) {
@@ -84,27 +84,36 @@ async function update() {
     } else if (lat > 35 && lng < 105) {
       area = "中国西北地区";
     } else {
-      area = "当前位置（根据坐标）";
+      area = "当前位置区域";
     }
 
-    // 🧠 AI天气建议
+    // 🧠 情绪判断
+    let mood = "";
     let advice = "";
 
     if (temp >= 30) {
-      advice = "天气很热，注意防晒和补水";
+      mood = "有点炎热";
+      advice = "记得多喝水，避免暴晒";
     } else if (temp >= 20) {
-      advice = "天气舒适，适合外出";
+      mood = "比较舒适";
+      advice = "今天适合出门走走";
     } else if (temp >= 10) {
-      advice = "有点凉，建议带外套";
+      mood = "有点凉意";
+      advice = "建议带件外套";
     } else {
-      advice = "天气较冷，注意保暖";
+      mood = "比较寒冷";
+      advice = "注意保暖，别着凉";
     }
 
-    setStatus(`📍 ${area}\n🌡 ${temp}°C\n🧠 ${advice}`);
+    // 🧠 AI一句话生成
+    const aiText =
+      `我看了一下你的位置，你现在在${area}，天气${mood}，温度大约${temp}°C，${advice}。`;
+
+    setStatus(`📍 ${area}\n🌡 ${temp}°C\n🧠 ${aiText}`);
 
   } catch (e) {
     console.log(e);
-    setStatus("系统错误，请刷新");
+    setStatus("AI系统错误，请刷新");
   }
 }
 
