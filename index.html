@@ -2,11 +2,11 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>AI Location System</title>
+  <title>AI Memory Location System</title>
 </head>
 
 <body>
-  <h2>📍 AI定位系统运行中...</h2>
+  <h2>📍 AI记忆系统运行中...</h2>
   <p id="status">初始化中...</p>
 
 <script>
@@ -17,11 +17,11 @@ function setStatus(msg) {
   document.getElementById("status").innerText = msg;
 }
 
-// 获取最新位置
+// 获取历史位置（关键：记忆基础）
 async function getLatest() {
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/user_location?select=lat,lng&order=id.desc&limit=1`,
+      `${SUPABASE_URL}/rest/v1/user_location?select=lat,lng,created_at&order=id.desc&limit=20`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -31,10 +31,11 @@ async function getLatest() {
     );
 
     const data = await res.json();
-    return data?.[0] || null;
+    return data || [];
 
   } catch (e) {
-    return null;
+    console.log(e);
+    return [];
   }
 }
 
@@ -53,28 +54,56 @@ async function getWeather(lat, lng) {
   }
 }
 
-// 🤖 AI核心（增强版）
+// 🧠 AI记忆分析核心
+function analyzeMemory(list) {
+  if (!list || list.length < 5) {
+    return "📍 数据还不够，AI正在学习你的行为...";
+  }
+
+  const latest = list[0];
+
+  let sameAreaCount = 0;
+
+  for (let i = 1; i < list.length; i++) {
+    const dLat = Math.abs(latest.lat - list[i].lat);
+    const dLng = Math.abs(latest.lng - list[i].lng);
+
+    if (dLat < 0.01 && dLng < 0.01) {
+      sameAreaCount++;
+    }
+  }
+
+  if (sameAreaCount > 3) {
+    return "📍 AI判断：你最近长期停留在同一个区域";
+  } else {
+    return "📍 AI判断：你今天有明显的移动轨迹";
+  }
+}
+
+// 🤖 主逻辑
 async function update() {
   try {
     setStatus("读取位置...");
 
-    const loc = await getLatest();
+    const list = await getLatest();
 
-    if (!loc) {
-      setStatus("暂无定位数据（请先打开手机页面）");
+    if (!list || list.length === 0) {
+      setStatus("暂无数据（请打开手机定位页面）");
       return;
     }
 
-    const lat = loc.lat;
-    const lng = loc.lng;
+    const latest = list[0];
+
+    const lat = latest.lat;
+    const lng = latest.lng;
 
     setStatus("获取天气...");
 
     const temp = await getWeather(lat, lng);
 
-    setStatus("AI思考中...");
+    setStatus("AI分析中...");
 
-    // 🌍 区域判断（稳定版）
+    // 🌍 区域判断
     let area = "";
 
     if (lat > 35 && lng > 100 && lng < 125) {
@@ -87,7 +116,7 @@ async function update() {
       area = "当前位置区域";
     }
 
-    // 🧠 情绪判断
+    // 🧠 AI天气建议
     let mood = "";
     let advice = "";
 
@@ -96,24 +125,28 @@ async function update() {
       advice = "记得多喝水，避免暴晒";
     } else if (temp >= 20) {
       mood = "比较舒适";
-      advice = "今天适合出门走走";
+      advice = "适合外出走走";
     } else if (temp >= 10) {
       mood = "有点凉意";
-      advice = "建议带件外套";
+      advice = "建议带外套";
     } else {
       mood = "比较寒冷";
-      advice = "注意保暖，别着凉";
+      advice = "注意保暖";
     }
 
-    // 🧠 AI一句话生成
     const aiText =
-      `我看了一下你的位置，你现在在${area}，天气${mood}，温度大约${temp}°C，${advice}。`;
+      `我看了一下你的位置，你现在在${area}，天气${mood}，温度约${temp}°C，${advice}。`;
 
-    setStatus(`📍 ${area}\n🌡 ${temp}°C\n🧠 ${aiText}`);
+    // 🧠 记忆输出
+    const memoryText = analyzeMemory(list);
+
+    setStatus(
+      `📍 ${area}\n🌡 ${temp}°C\n🧠 ${aiText}\n🧭 ${memoryText}`
+    );
 
   } catch (e) {
     console.log(e);
-    setStatus("AI系统错误，请刷新");
+    setStatus("系统错误，请刷新");
   }
 }
 
