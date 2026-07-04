@@ -17,7 +17,37 @@ function setStatus(msg) {
   document.getElementById("status").innerText = msg;
 }
 
-// 1️⃣ 最新位置
+function safeText(v) {
+  return v === undefined || v === null ? "" : v;
+}
+
+// 🚀 1. 获取最新位置（防卡死）
+async function getLatest() {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/user_location?select=lat,lng&order=id.desc&limit=1`,
+      {
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`
+        }
+      }
+    );
+
+    const data = await res.json();
+
+    if (!Array.isArray(data) || data.length === 0) {
+      return null;
+    }
+
+    return data[0];
+  } catch (e) {
+    console.log("SUPABASE ERROR:", e);
+    return null;
+  }
+}
+
+// 🌍 2. 城市解析（彻底兜底版）
 async function getCity(lat, lng) {
   try {
     const res = await fetch(
@@ -33,12 +63,9 @@ async function getCity(lat, lng) {
       addr.village ||
       addr.county ||
       addr.state ||
-      addr.region ||
       addr.country;
 
-    if (!city) {
-      return `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
-    }
+    if (!city) return `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
 
     return city;
 
@@ -46,37 +73,8 @@ async function getCity(lat, lng) {
     return `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
   }
 }
-  );
 
-  const data = await res.json();
-  return data?.[0] || null;
-}
-
-// 2️⃣ 🌍 OpenStreetMap（兜底主方案）
-async function getCity(lat, lng) {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
-    );
-
-    const data = await res.json();
-    const addr = data?.address || {};
-
-    return (
-      addr.city ||
-      addr.town ||
-      addr.village ||
-      addr.county ||
-      addr.state ||
-      addr.country ||
-      "未知城市"
-    );
-  } catch (e) {
-    return "未知城市";
-  }
-}
-
-// 3️⃣ 天气
+// 🌡 3. 天气（防失败）
 async function getWeather(lat, lng) {
   try {
     const res = await fetch(
@@ -90,33 +88,39 @@ async function getWeather(lat, lng) {
   }
 }
 
-// 4️⃣ 主流程
+// 🚀 4. 主流程（不会卡死版）
 async function update() {
   try {
     setStatus("读取位置...");
 
     const loc = await getLatest();
-    console.log("LOC =", loc);
+
     if (!loc) {
-      setStatus("暂无数据");
+      setStatus("暂无定位数据（请先打开手机页面）");
       return;
     }
 
-    setStatus("解析位置...");
+    const lat = loc.lat;
+    const lng = loc.lng;
 
-    const city = await getCity(loc.lat, loc.lng);
-    const temp = await getWeather(loc.lat, loc.lng);
+    setStatus("解析城市...");
 
-    setStatus(`📍 ${city} | 🌡 ${temp}°C`);
+    let city = await getCity(lat, lng);
+
+    setStatus("获取天气...");
+
+    let temp = await getWeather(lat, lng);
+
+    setStatus(`📍 ${safeText(city)} | 🌡 ${safeText(temp)}°C`);
 
   } catch (e) {
     console.log(e);
-    setStatus("系统错误");
+    setStatus("系统错误（请刷新）");
   }
 }
 
-// 5️⃣ 启动
-update();
+// 🚀 启动（关键：防止“初始化中卡死”）
+setTimeout(update, 500);
 setInterval(update, 15000);
 
 </script>
