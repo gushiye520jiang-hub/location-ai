@@ -17,11 +17,7 @@ function setStatus(msg) {
   document.getElementById("status").innerText = msg;
 }
 
-function safeText(v) {
-  return v === undefined || v === null ? "" : v;
-}
-
-// 🚀 1. 获取最新位置（防卡死）
+// 获取最新位置
 async function getLatest() {
   try {
     const res = await fetch(
@@ -35,46 +31,14 @@ async function getLatest() {
     );
 
     const data = await res.json();
+    return data?.[0] || null;
 
-    if (!Array.isArray(data) || data.length === 0) {
-      return null;
-    }
-
-    return data[0];
   } catch (e) {
-    console.log("SUPABASE ERROR:", e);
     return null;
   }
 }
 
-// 🌍 2. 城市解析（彻底兜底版）
-async function getCity(lat, lng) {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
-    );
-
-    const data = await res.json();
-    const addr = data?.address || {};
-
-    const city =
-      addr.city ||
-      addr.town ||
-      addr.village ||
-      addr.county ||
-      addr.state ||
-      addr.country;
-
-    if (!city) return `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
-
-    return city;
-
-  } catch (e) {
-    return `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
-  }
-}
-
-// 🌡 3. 天气（防失败）
+// 获取天气
 async function getWeather(lat, lng) {
   try {
     const res = await fetch(
@@ -83,12 +47,13 @@ async function getWeather(lat, lng) {
 
     const data = await res.json();
     return data?.current_weather?.temperature ?? "未知";
+
   } catch (e) {
     return "未知";
   }
 }
 
-// 🚀 4. 主流程（不会卡死版）
+// 🤖 AI说话核心
 async function update() {
   try {
     setStatus("读取位置...");
@@ -103,23 +68,47 @@ async function update() {
     const lat = loc.lat;
     const lng = loc.lng;
 
-    setStatus("解析城市...");
-
-    let city = await getCity(lat, lng);
-
     setStatus("获取天气...");
 
-    let temp = await getWeather(lat, lng);
+    const temp = await getWeather(lat, lng);
 
-    setStatus(`📍 ${safeText(city)} | 🌡 ${safeText(temp)}°C`);
+    setStatus("AI分析中...");
+
+    // 🌍 简单区域判断（稳定，不依赖城市API）
+    let area = "";
+
+    if (lat > 35 && lng > 100 && lng < 125) {
+      area = "中国东部地区";
+    } else if (lat > 20 && lat <= 35 && lng > 105) {
+      area = "中国南方地区";
+    } else if (lat > 35 && lng < 105) {
+      area = "中国西北地区";
+    } else {
+      area = "当前位置（根据坐标）";
+    }
+
+    // 🧠 AI天气建议
+    let advice = "";
+
+    if (temp >= 30) {
+      advice = "天气很热，注意防晒和补水";
+    } else if (temp >= 20) {
+      advice = "天气舒适，适合外出";
+    } else if (temp >= 10) {
+      advice = "有点凉，建议带外套";
+    } else {
+      advice = "天气较冷，注意保暖";
+    }
+
+    setStatus(`📍 ${area}\n🌡 ${temp}°C\n🧠 ${advice}`);
 
   } catch (e) {
     console.log(e);
-    setStatus("系统错误（请刷新）");
+    setStatus("系统错误，请刷新");
   }
 }
 
-// 🚀 启动（关键：防止“初始化中卡死”）
+// 启动
 setTimeout(update, 500);
 setInterval(update, 15000);
 
