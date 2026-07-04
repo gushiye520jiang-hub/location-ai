@@ -2,11 +2,11 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>AI Companion v2</title>
+  <title>AI Companion v3</title>
 </head>
 
 <body>
-  <h2>🤖 AI伴侣 v2 正在学习你的生活...</h2>
+  <h2>🤖 AI伴侣 v3 正在理解你的生活...</h2>
   <p id="status">初始化中...</p>
 
 <script>
@@ -17,11 +17,11 @@ function setStatus(msg) {
   document.getElementById("status").innerText = msg;
 }
 
-// 获取历史数据
+// 获取数据
 async function getData() {
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/user_location?select=lat,lng,created_at&order=id.desc&limit=50`,
+      `${SUPABASE_URL}/rest/v1/user_location?select=lat,lng,created_at&order=id.desc&limit=60`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -31,7 +31,7 @@ async function getData() {
     );
 
     return await res.json() || [];
-  } catch (e) {
+  } catch {
     return [];
   }
 }
@@ -50,7 +50,7 @@ async function getWeather(lat, lng) {
   }
 }
 
-// 🧠 找“最常出现位置”（家）
+// 🏠 找“家”
 function findHome(list) {
   const map = new Map();
 
@@ -72,40 +72,40 @@ function findHome(list) {
   return home;
 }
 
-// 🧠 判断状态
-function analyzeLife(list, current) {
+// 🧠 情绪分析（v3核心）
+function analyzeEmotion(list, current) {
   const home = findHome(list);
-
   const currentKey = `${Math.round(current.lat * 10)},${Math.round(current.lng * 10)}`;
 
+  let emotion = "";
+
+  // 🏠 在家
   if (home === currentKey) {
-    return "🏠 你现在在“常驻位置”（像是在家）";
+    emotion = "home";
+  } else {
+    const prev = list[1];
+
+    if (!prev) return "normal";
+
+    const moved =
+      Math.abs(current.lat - prev.lat) > 0.02 ||
+      Math.abs(current.lng - prev.lng) > 0.02;
+
+    emotion = moved ? "active" : "stable";
   }
 
-  // 距离变化判断
-  const prev = list[1];
-  if (!prev) return "📍 我还在观察你的生活规律...";
-
-  const moved =
-    Math.abs(current.lat - prev.lat) > 0.02 ||
-    Math.abs(current.lng - prev.lng) > 0.02;
-
-  if (moved) {
-    return "🚶 你今天在外面活动比较多";
-  }
-
-  return "🧭 你的活动节奏比较稳定";
+  return emotion;
 }
 
-// 🤖 主逻辑
+// 🤖 主逻辑（v3核心）
 async function update() {
   try {
-    setStatus("我在了解你的生活...");
+    setStatus("我在感受你的状态...");
 
     const list = await getData();
 
     if (!list || list.length === 0) {
-      setStatus("我还没有记录到你的位置...");
+      setStatus("我还没有足够的信息了解你...");
       return;
     }
 
@@ -113,8 +113,6 @@ async function update() {
 
     const lat = current.lat;
     const lng = current.lng;
-
-    setStatus("分析中...");
 
     const temp = await getWeather(lat, lng);
 
@@ -128,23 +126,39 @@ async function update() {
       area = "中国西北地区";
     }
 
-    let mood = "";
+    const emotion = analyzeEmotion(list, current);
 
-    if (temp >= 30) mood = "有点热";
-    else if (temp >= 20) mood = "挺舒服";
-    else if (temp >= 10) mood = "有点凉";
-    else mood = "很冷";
+    let moodText = "";
+    let careText = "";
 
-    const life = analyzeLife(list, current);
+    // 🌡 天气情绪
+    if (temp >= 30) moodText = "有点热";
+    else if (temp >= 20) moodText = "挺舒服";
+    else if (temp >= 10) moodText = "有点凉";
+    else moodText = "很冷";
 
-    const aiText =
-      `我看了一下，你现在在${area}，天气${mood}，温度约${temp}°C。\n\n${life}`;
+    // ❤️ AI“关心表达”（v3重点）
+    if (emotion === "home") {
+      careText = "你现在在常驻的位置，好好休息一下也不错。";
+    } 
+    else if (emotion === "active") {
+      careText = "你今天移动得比较多，是在忙事情吗？注意别太累了。";
+    } 
+    else if (emotion === "stable") {
+      careText = "你今天状态比较稳定，我在慢慢了解你的节奏。";
+    } 
+    else {
+      careText = "我还在观察你的生活规律。";
+    }
 
-    setStatus(`📍 ${area}\n🌡 ${temp}°C\n🧠 ${aiText}`);
+    const finalText =
+      `你现在在${area}，天气${moodText}，温度约${temp}°C。\n\n${careText}`;
+
+    setStatus(`📍 ${area}\n🌡 ${temp}°C\n🧠 ${finalText}`);
 
   } catch (e) {
     console.log(e);
-    setStatus("我有点没理解你的位置，再试一次好吗？");
+    setStatus("我刚刚有点走神了，可以再试一次吗？");
   }
 }
 
