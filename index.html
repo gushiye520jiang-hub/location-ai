@@ -77,6 +77,7 @@ async function update() {
     setStatus("读取位置...");
 
     const loc = await getLatest();
+    console.log("LOC =", loc);
     if (!loc) {
       setStatus("暂无数据");
       return;
