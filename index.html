@@ -7,7 +7,7 @@
 
 <body>
   <h2>📍 AI定位系统运行中...</h2>
-  <p id="status">初始化...</p>
+  <p id="status">初始化中...</p>
 
 <script>
 const SUPABASE_URL = "https://yzhposuiczzthtctafuk.supabase.co";
@@ -17,7 +17,7 @@ function setStatus(msg) {
   document.getElementById("status").innerText = msg;
 }
 
-// 获取最新位置
+// 1️⃣ 获取最新位置
 async function getLatest() {
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/user_location?select=lat,lng&order=id.desc&limit=1`,
@@ -30,51 +30,69 @@ async function getLatest() {
   );
 
   const data = await res.json();
-  return data[0];
+  return data && data[0] ? data[0] : null;
 }
 
-// 反查城市（稳定版）
+// 2️⃣ 城市（防卡死版）
 async function getCity(lat, lng) {
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
     );
+
     const data = await res.json();
-    return data.address.city || data.address.town || "未知城市";
+    return (
+      data?.address?.city ||
+      data?.address?.town ||
+      data?.address?.village ||
+      "未知城市"
+    );
   } catch (e) {
-    return "城市解析失败";
+    return "未知城市";
   }
 }
 
-// 天气
+// 3️⃣ 天气（防卡死版）
 async function getWeather(lat, lng) {
   try {
     const res = await fetch(
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true`
     );
+
     const data = await res.json();
-    return data.current_weather.temperature;
+    return data?.current_weather?.temperature ?? "未知";
   } catch (e) {
     return "未知";
   }
 }
 
-// 主流程
+// 4️⃣ 主逻辑（核心）
 async function update() {
   try {
-    setStatus("读取位置中...");
+    setStatus("读取最新位置...");
 
     const loc = await getLatest();
+
     if (!loc) {
-      setStatus("没有数据");
+      setStatus("暂无数据");
       return;
     }
 
     setStatus("解析城市...");
-    const city = await getCity(loc.lat, loc.lng);
+
+    let city = "未知城市";
+    let temp = "未知";
+
+    // 防卡死执行
+    try {
+      city = await getCity(loc.lat, loc.lng);
+    } catch {}
 
     setStatus("获取天气...");
-    const temp = await getWeather(loc.lat, loc.lng);
+
+    try {
+      temp = await getWeather(loc.lat, loc.lng);
+    } catch {}
 
     setStatus(`📍 ${city} | 🌡 ${temp}°C`);
 
@@ -84,9 +102,10 @@ async function update() {
   }
 }
 
-// 启动
+// 5️⃣ 启动
 update();
 setInterval(update, 15000);
+
 </script>
 
 </body>
