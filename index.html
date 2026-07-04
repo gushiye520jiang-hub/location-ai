@@ -13,14 +13,11 @@
 const SUPABASE_URL = "https://yzhposuiczzthtctafuk.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6aHBvc3VpY3p6dGh0Y3RhZnVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0MzU3MzMsImV4cCI6MjA5ODAxMTczM30.OWZpBrCxPs-mWCOO0AemjDARelZjI1z6Nv_BsZayzD8";
 
-// 👉 高德 API KEY（你填这里）
-const AMAP_KEY = "51cef85f98f92987840a4100de0f3fe0";
-
 function setStatus(msg) {
   document.getElementById("status").innerText = msg;
 }
 
-// 1️⃣ 获取最新位置
+// 1️⃣ 最新位置
 async function getLatest() {
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/user_location?select=lat,lng&order=id.desc&limit=1`,
@@ -33,21 +30,26 @@ async function getLatest() {
   );
 
   const data = await res.json();
-  return data && data[0] ? data[0] : null;
+  return data?.[0] || null;
 }
 
-// 2️⃣ 🌍 高德逆地理编码（稳定版）
+// 2️⃣ 🌍 OpenStreetMap（兜底主方案）
 async function getCity(lat, lng) {
   try {
-    const url = `https://restapi.amap.com/v3/geocode/regeo?location=${lng},${lat}&key=${AMAP_KEY}`;
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+    );
 
-    const res = await fetch(url);
     const data = await res.json();
+    const addr = data?.address || {};
 
     return (
-      data?.regeocode?.addressComponent?.city ||
-      data?.regeocode?.addressComponent?.province ||
-      data?.regeocode?.addressComponent?.district ||
+      addr.city ||
+      addr.town ||
+      addr.village ||
+      addr.county ||
+      addr.state ||
+      addr.country ||
       "未知城市"
     );
   } catch (e) {
@@ -55,7 +57,7 @@ async function getCity(lat, lng) {
   }
 }
 
-// 3️⃣ 天气（继续用免费稳定API）
+// 3️⃣ 天气
 async function getWeather(lat, lng) {
   try {
     const res = await fetch(
@@ -72,29 +74,18 @@ async function getWeather(lat, lng) {
 // 4️⃣ 主流程
 async function update() {
   try {
-    setStatus("读取最新位置...");
+    setStatus("读取位置...");
 
     const loc = await getLatest();
-
     if (!loc) {
       setStatus("暂无数据");
       return;
     }
 
-    setStatus("解析城市...");
+    setStatus("解析位置...");
 
-    let city = "未知城市";
-    let temp = "未知";
-
-    try {
-      city = await getCity(loc.lat, loc.lng);
-    } catch {}
-
-    setStatus("获取天气...");
-
-    try {
-      temp = await getWeather(loc.lat, loc.lng);
-    } catch {}
+    const city = await getCity(loc.lat, loc.lng);
+    const temp = await getWeather(loc.lat, loc.lng);
 
     setStatus(`📍 ${city} | 🌡 ${temp}°C`);
 
