@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>AI Location Tracker</title>
+</head>
+
+<body>
+  <h2>📍 系统启动中...</h2>
+  <p id="status">等待定位</p>
+
+<script>
+document.getElementById("status").innerText = "页面已加载";
+
+if ("geolocation" in navigator) {
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+
+      document.getElementById("status").innerText =
+        "位置获取成功： " + lat + ", " + lng;
+    },
+    (err) => {
+      document.getElementById("status").innerText =
+        "定位失败：" + err.message;
+    }
+  );
+} else {
+  document.getElementById("status").innerText =
+    "浏览器不支持定位";
+}
+</script>
+
+</body>
+</html>
